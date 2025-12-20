@@ -1,0 +1,10 @@
+[profile.default]
+src = '.'
+out = 'out'
+libs = ['lib']
+solc_version = '0.8.20'
+
+[rpc_endpoints]
+base-sepolia = "${BASE_SEPOLIA_RPC_URL}"
+base = "${BASE_RPC_URL}"
+

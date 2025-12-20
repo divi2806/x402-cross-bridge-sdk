@@ -1,0 +1,46 @@
+# Source files (users don't need these)
+src/
+tsconfig.json
+
+# Development files
+.env
+.env.*
+env.example.txt
+*.log
+
+# Build artifacts (keep dist/)
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+test/
+tests/
+*.test.ts
+*.spec.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep README.md)
+docs/
+*.md
+!README.md
+
+# Examples (not needed in published package)
+examples/
+
+# Node modules (already excluded by default)
+node_modules/
+

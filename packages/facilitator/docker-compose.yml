@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  facilitator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x402-facilitator
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      # Required - Must be provided
+      - BASE_RPC_URL=${BASE_RPC_URL}
+      - PAYMENT_SETTLEMENT_ADDRESS=${PAYMENT_SETTLEMENT_ADDRESS}
+      - SETTLER_PRIVATE_KEY=${SETTLER_PRIVATE_KEY}
+      
+      # Optional - With defaults
+      - PORT=${PORT:-3001}
+      - NODE_ENV=${NODE_ENV:-production}
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Network
+    networks:
+      - x402-network
+
+networks:
+  x402-network:
+    driver: bridge
+

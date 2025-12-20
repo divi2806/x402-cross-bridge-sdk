@@ -1,0 +1,31 @@
+{
+  "name": "x402-crosschain-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cross-chain payment layer for x402 - Accept payments from any chain, receive USDC on Base",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "clean": "pnpm -r clean",
+    "test:merchant": "pnpm --filter example-merchant-hosted dev",
+    "test:merchant-self": "pnpm --filter example-merchant-self-hosted dev",
+    "test:customer": "pnpm --filter example-customer-client dev",
+    "test:facilitator": "pnpm --filter @x402-crosschain/facilitator dev",
+    "build:sdk": "pnpm --filter @x402-crosschain/sdk build",
+    "build:facilitator": "pnpm --filter @x402-crosschain/facilitator build"
+  },
+  "keywords": [
+    "x402",
+    "cross-chain",
+    "payments",
+    "web3",
+    "crypto"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

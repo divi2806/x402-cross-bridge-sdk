@@ -1,0 +1,22 @@
+{
+  "name": "example-merchant-self-hosted",
+  "version": "1.0.0",
+  "description": "Example: Merchant running own facilitator",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx server.ts",
+    "start": "node server.ts"
+  },
+  "dependencies": {
+    "@x402-crosschain/sdk": "workspace:*",
+    "@x402-crosschain/facilitator": "workspace:*",
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "tsx": "^4.7.0"
+  }
+}
+

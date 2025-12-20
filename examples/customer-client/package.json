@@ -1,0 +1,17 @@
+{
+  "name": "customer-client-example",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch client.ts",
+    "start": "tsx client.ts"
+  },
+  "dependencies": {
+    "@x402-crosschain/sdk": "workspace:*",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0"
+  }
+}
