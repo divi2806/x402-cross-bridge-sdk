@@ -217,7 +217,7 @@ if (result.success) {
 
 ---
 
-## 🌍 **Supported Chains**
+##  **Supported Chains**
 
 The SDK supports 69+ chains via Relay Network:
 
@@ -242,7 +242,7 @@ See full list: https://docs.relay.link/resources/supported-chains
 
 ---
 
-## 💰 **Token Support**
+##  **Token Support**
 
 ### **Source Chains (What customers can pay with)**
 - Native tokens (ETH, MATIC, AVAX, etc.)
@@ -259,7 +259,7 @@ See full list: https://docs.relay.link/resources/supported-chains
 
 ---
 
-## 🔧 **Advanced Configuration**
+##  **Advanced Configuration**
 
 ### **Dynamic Pricing**
 
@@ -330,7 +330,7 @@ See [Facilitator Documentation](../facilitator/README.md) for details.
 
 ---
 
-## 📊 **Fee Structure**
+##  **Fee Structure**
 
 ### **Cross-Chain Payment Costs**
 
@@ -358,7 +358,7 @@ Effective fee: 0.5%
 
 ---
 
-## 🔒 **Security**
+##  **Security**
 
 ### **Payment Verification**
 - All payments verified on-chain
@@ -379,7 +379,7 @@ const signer = new Wallet(process.env.PRIVATE_KEY, provider);
 
 ---
 
-## 🧪 **Testing**
+##  **Testing**
 
 ### **Test Networks**
 
@@ -400,7 +400,7 @@ paymentMiddleware({
 
 ---
 
-## 📖 **Examples**
+##  **Examples**
 
 ### **E-commerce API**
 
@@ -457,32 +457,23 @@ app.use(
 
 ---
 
-## 🤝 **Support**
+## **Support**
 
-- **Documentation**: [https://docs.x402crosschain.com](https://docs.x402crosschain.com)
-- **GitHub Issues**: [https://github.com/your-org/x402-cross-bridge-sdk/issues](https://github.com/your-org/x402-cross-bridge-sdk/issues)
-- **Discord**: [Join our community](https://discord.gg/your-invite)
-- **Email**: support@x402crosschain.com
+- **GitHub Issues**: https://github.com/divi2806/x402-cross-bridge-sdk/issues
+- **Email**: divyansh2824@gmail.com
 
----
-
-## 📄 **License**
-
-Apache 2.0 License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 **Acknowledgments**
+##  **License**
 
-Built on top of:
-- [x402 Protocol](https://x402.org) - Open payment standard
-- [Relay Network](https://relay.link) - Instant cross-chain bridging
-- [viem](https://viem.sh) - TypeScript EVM library
-- [ethers.js](https://docs.ethers.org) - Ethereum library
+MIT License
 
 ---
 
-## 🔄 **Changelog**
+---
+
+##  **Changelog**
 
 ### v1.0.0
 - Initial release
@@ -492,6 +483,7 @@ Built on top of:
 - Self-hosted facilitator option
 - Comprehensive documentation
 
+##  **Reference**
+ - Refer to facilitator on how to integrate/use the cross chain facilitator - https://www.npmjs.com/package/@x402-crosschain/facilitator
 ---
 
-**Made with ❤️ by the x402 Cross-Chain Team**

@@ -1,6 +1,6 @@
 {
   "name": "@x402-crosschain/sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "x402 cross-chain payment SDK with Relay Network support",
   "type": "module",
   "main": "dist/index.js",
