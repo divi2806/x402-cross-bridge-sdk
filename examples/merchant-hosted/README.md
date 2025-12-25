@@ -8,7 +8,6 @@ This example shows a merchant API that uses a **hosted facilitator** for cross-c
 - Merchant points to a hosted facilitator (provided by your company)
 - Merchant accepts payments from ANY chain
 - Merchant ALWAYS receives USDC on Base
-- **Mayan is completely invisible to the merchant**
 
 ## Setup
 

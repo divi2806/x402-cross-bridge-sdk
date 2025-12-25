@@ -7,7 +7,6 @@ This example shows a merchant that runs their **own facilitator** locally.
 - Merchant has full control over infrastructure
 - Merchant runs the facilitator on their own server
 - Cross-chain payments still work the same way
-- **Mayan integration is inside the facilitator** (merchant doesn't configure it)
 
 ## Setup
 
