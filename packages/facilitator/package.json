@@ -43,11 +43,11 @@
     "ethereum",
     "blockchain"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Divyansh Sharma <divyansh242805@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/x402-cross-bridge-sdk.git",
+    "url": "https://github.com/divi2806/x402-cross-bridge-sdk.git",
     "directory": "packages/facilitator"
   },
   "publishConfig": {

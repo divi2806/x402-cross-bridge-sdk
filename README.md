@@ -403,7 +403,7 @@ Relay uses **optimistic settlement** via liquidity pools - merchants are paid in
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/x402-cross-bridge-sdk.git
+git clone https://github.com/divi2806/x402-cross-bridge-sdk.git
 cd x402-cross-bridge-sdk
 
 # Install dependencies
@@ -444,7 +444,7 @@ Contributions welcome! Please read our contributing guidelines before submitting
 
 ## 🙋 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/x402-cross-bridge-sdk/issues)
+- **Issues**: [GitHub Issues](https://github.com/divi2806/x402-cross-bridge-sdk/issues)
 - **Documentation**: See documentation files in this repo
 - **x402 Protocol**: [x402.org](https://x402.org)
 - **Relay Network**: [docs.relay.link](https://docs.relay.link)

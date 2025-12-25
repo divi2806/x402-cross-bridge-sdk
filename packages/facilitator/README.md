@@ -6,7 +6,7 @@ The facilitator handles cross-chain payment routing, bridging via Relay Network,
 
 ---
 
-## 🎯 **Overview**
+##**Overview**
 
 The facilitator is the backend engine that powers cross-chain x402 payments:
 
@@ -17,18 +17,18 @@ The facilitator is the backend engine that powers cross-chain x402 payments:
 
 ---
 
-## ⚡ **Key Features**
+## **Key Features**
 
-- ⚡ **Instant Bridging** - 2-3 second settlement via Relay liquidity pools
-- 🌐 **69+ Chains** - Support for all major EVM chains + Solana, Bitcoin
-- 🔒 **Non-Custodial** - No funds held, only coordinates transactions
-- 📊 **Status Polling** - Automatic bridge completion tracking
-- 🐳 **Docker Ready** - Easy deployment with Docker/Kubernetes
-- 🔧 **Configurable** - Environment-based configuration
+-  **Instant Bridging** - 2-3 second settlement via Relay liquidity pools
+-  **69+ Chains** - Support for all major EVM chains + Solana, Bitcoin
+-  **Non-Custodial** - No funds held, only coordinates transactions
+-  **Status Polling** - Automatic bridge completion tracking
+-  **Docker Ready** - Easy deployment with Docker/Kubernetes
+-  **Configurable** - Environment-based configuration
 
 ---
 
-## 📦 **Deployment Options**
+##  **Deployment Options**
 
 ### **Option 1: Docker (Recommended)**
 
@@ -74,7 +74,7 @@ await startFacilitator({
 
 ---
 
-## 🔧 **Configuration**
+##  **Configuration**
 
 ### **Environment Variables**
 
@@ -83,7 +83,7 @@ Create a `.env` file:
 ```bash
 # Required Configuration
 BASE_RPC_URL=https://mainnet.base.org
-PAYMENT_SETTLEMENT_ADDRESS=0x29e02D2abf9466CDAf5ddebe2D9E9d81F1fA4a7f
+PAYMENT_SETTLEMENT_ADDRESS=0xYourContractAddress
 SETTLER_PRIVATE_KEY=0xYourPrivateKeyHere
 
 # Optional Configuration
@@ -103,7 +103,7 @@ POLL_INTERVAL=10000
 
 ---
 
-## 📡 **API Endpoints**
+##  **API Endpoints**
 
 ### **POST /quote-route**
 
@@ -237,7 +237,7 @@ GET http://localhost:3001/health
 
 ---
 
-## 🏗️ **Architecture**
+## **Architecture**
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -275,7 +275,7 @@ GET http://localhost:3001/health
 
 ---
 
-## 🔄 **Payment Flow**
+##  **Payment Flow**
 
 ```
 1. Client → POST /quote-route
@@ -299,7 +299,7 @@ GET http://localhost:3001/health
 
 ---
 
-## 🐳 **Docker Deployment**
+##**Docker Deployment**
 
 ### **Dockerfile**
 
@@ -385,11 +385,11 @@ spec:
 
 ---
 
-## 🔒 **Security Considerations**
+##  **Security Considerations**
 
 ### **Private Key Management**
 
-⚠️ **CRITICAL**: Never expose your settler private key!
+ **CRITICAL**: Never expose your settler private key!
 
 ```bash
 # ✅ Good: Use environment variables
@@ -434,7 +434,7 @@ curl http://localhost:3001/health | jq '.activePayments'
 
 ---
 
-## 📊 **Operational Metrics**
+##  **Operational Metrics**
 
 ### **Performance**
 
@@ -460,7 +460,7 @@ curl http://localhost:3001/health | jq '.activePayments'
 
 ---
 
-## 🧪 **Testing**
+## **Testing**
 
 ### **Local Testing**
 
@@ -494,7 +494,7 @@ See [`examples/`](../../examples/) directory for full integration tests.
 
 ---
 
-## 🔧 **Troubleshooting**
+##  **Troubleshooting**
 
 ### **Common Issues**
 
@@ -577,7 +577,7 @@ kubectl rollout status deployment/x402-facilitator
 
 ---
 
-## 📚 **API Client Examples**
+## **API Client Examples**
 
 ### **JavaScript/TypeScript**
 
@@ -615,27 +615,17 @@ curl https://facilitator.yourdomain.com/health
 
 ---
 
-## 📄 **License**
+##**License**
 
-Apache 2.0 License
+MIT License
+
+---
+---
+
+## **Support**
+
+- **GitHub Issues**: https://github.com/divi2806/x402-cross-bridge-sdk/issues
+- **Email**: divyansh2824@gmail.com
 
 ---
 
-## 🙏 **Acknowledgments**
-
-- [Relay Network](https://relay.link) - Instant cross-chain bridging
-- [x402 Protocol](https://x402.org) - Open payment standard
-- [ethers.js](https://docs.ethers.org) - Ethereum interactions
-
----
-
-## 🆘 **Support**
-
-- **Documentation**: https://docs.x402crosschain.com
-- **GitHub Issues**: https://github.com/your-org/x402-cross-bridge-sdk/issues
-- **Discord**: https://discord.gg/your-invite
-- **Email**: support@x402crosschain.com
-
----
-
-**Made with ❤️ by the x402 Cross-Chain Team**

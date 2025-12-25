@@ -2,25 +2,24 @@
 
 > **Cross-chain payment SDK extending x402 protocol with instant multi-chain support**
 
-Enable your application to accept payments in any token on any chain, with instant settlement in USDC on Base. Built on the x402 payment protocol with Relay's instant bridging (2-3 second settlement).
+Enable your application to accept payments in any token on any chain, with instant settlement in USDC on Base. Built on the x402 payment protocol with  instant bridging.
 
 [![npm version](https://img.shields.io/npm/v/@x402-crosschain/sdk.svg)](https://www.npmjs.com/package/@x402-crosschain/sdk)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+---
+
+##**Key Features**
+
+- **Instant Settlement** - 2-3 second cross-chain payments via Relay
+- **69+ Chains** - Support for Ethereum, Arbitrum, Base, Polygon, Solana, and more
+- **Any Token** - Accept payments in ETH, USDC, USDT, or any supported token
+- **Secure** - Built on x402 standard with on-chain settlement verification
+- **Merchant-Friendly** - Simple Express middleware integration
+- **Production Ready** - Used in production with proven reliability
 
 ---
 
-## 🎯 **Key Features**
-
-- ⚡ **Instant Settlement** - 2-3 second cross-chain payments via Relay
-- 🌐 **69+ Chains** - Support for Ethereum, Arbitrum, Base, Polygon, Solana, and more
-- 💰 **Any Token** - Accept payments in ETH, USDC, USDT, or any supported token
-- 🔒 **Secure** - Built on x402 standard with on-chain settlement verification
-- 🎯 **Merchant-Friendly** - Simple Express middleware integration
-- 🚀 **Production Ready** - Used in production with proven reliability
-
----
-
-## 📦 **Installation**
+## **Installation**
 
 ```bash
 npm install @x402-crosschain/sdk
@@ -32,7 +31,7 @@ pnpm add @x402-crosschain/sdk
 
 ---
 
-## 🚀 **Quick Start**
+## **Quick Start**
 
 ### **For Merchants (Backend)**
 
@@ -312,7 +311,7 @@ try {
 
 ---
 
-## 🏃 **Self-Hosting the Facilitator**
+##**Self-Hosting the Facilitator**
 
 You can run your own facilitator for full control:
 
