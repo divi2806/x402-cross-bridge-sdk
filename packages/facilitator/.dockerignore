@@ -7,14 +7,22 @@ pnpm-debug.log*
 
 # Build outputs
 dist
-build
 *.tsbuildinfo
 
 # Environment files
 .env
 .env.local
 .env.*.local
-*.env
+env.example.txt
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+CHANGELOG.md
+*.md
 
 # IDE
 .vscode
@@ -27,20 +35,9 @@ build
 .DS_Store
 Thumbs.db
 
-# Git
-.git
-.gitignore
-.gitattributes
-
 # Testing
 coverage
 .nyc_output
 
-# Documentation
-*.md
-!README.md
-
 # Misc
 *.log
-.cache
-
