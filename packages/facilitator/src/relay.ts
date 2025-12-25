@@ -78,15 +78,109 @@ interface RelayQuoteResponse {
 }
 
 interface RelayStatusResponse {
-  status: 'waiting' | 'pending' | 'success' | 'failure' | 'refund';
+  status: 'waiting' | 'pending' | 'submitted' | 'success' | 'failure' | 'refund';
   inTxHash?: string;
+  inTxHashes?: string[];
   outTxHash?: string;
+  txHashes?: string[];
   refundTxHash?: string;
 }
 
 export type SwapStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
 export class RelayService {
+  /**
+   * Get a quote for swap+bridge with custom recipient
+   * Relay handles: any token on source chain → USDC on destination chain → recipient
+   * 
+   * @param fromChainId - Source chain ID
+   * @param fromToken - Source token address (any ERC-20 or native)
+   * @param toChainId - Destination chain ID
+   * @param toToken - Destination token address (usually USDC)
+   * @param amount - Destination amount needed (in smallest unit)
+   * @param userAddress - Who is sending the tokens (facilitator after taking from customer)
+   * @param recipient - Who receives the tokens (merchant)
+   * @returns Quote with transaction data
+   */
+  async getSwapBridgeQuote(
+    fromChainId: number,
+    fromToken: string,
+    toChainId: number,
+    toToken: string,
+    amount: string,
+    userAddress: string,
+    recipient: string
+  ): Promise<{
+    quoteId: string;
+    txData: { to: string; data: string; value: string; chainId: number };
+    expectedOutput: string;
+    expectedInput: string;
+    requestId: string;
+  }> {
+    try {
+      console.log('[Relay] Fetching swap+bridge quote...');
+      console.log(`  From: Chain ${fromChainId}, Token ${fromToken}`);
+      console.log(`  To: Chain ${toChainId}, Token ${toToken}`);
+      console.log(`  Amount needed: ${amount}`);
+      console.log(`  Sender: ${userAddress}`);
+      console.log(`  Recipient: ${recipient}`);
+
+      const quoteRequest: RelayQuoteRequest = {
+        user: userAddress,
+        originChainId: fromChainId,
+        destinationChainId: toChainId,
+        originCurrency: fromToken.toLowerCase(),
+        destinationCurrency: toToken.toLowerCase(),
+        amount: amount,
+        tradeType: 'EXACT_OUTPUT',
+        recipient: recipient, // Merchant receives directly
+        slippageTolerance: '100', // 1% slippage
+      };
+
+      const response = await fetch(`${RELAY_API_BASE_URL}/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quoteRequest),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Relay API error: ${response.status} - ${errorText}`);
+      }
+
+      const quote = await response.json() as RelayQuoteResponse;
+
+      if (!quote.steps || quote.steps.length === 0) {
+        throw new Error('No steps found in Relay quote');
+      }
+
+      const firstStep = quote.steps[0];
+      const firstItem = firstStep.items[0];
+      const txData = firstItem.data;
+
+      console.log('[Relay] Quote received:');
+      console.log(`  Input: ${quote.details.currencyIn.amount} ${quote.details.currencyIn.currency.symbol}`);
+      console.log(`  Output: ${quote.details.currencyOut.amount} ${quote.details.currencyOut.currency.symbol}`);
+      console.log(`  Time estimate: ${quote.details.timeEstimate}s`);
+
+      return {
+        quoteId: firstStep.requestId,
+        txData: {
+          to: txData.to,
+          data: txData.data,
+          value: txData.value || '0x0',
+          chainId: fromChainId,
+        },
+        expectedOutput: quote.details.currencyOut.amount,
+        expectedInput: quote.details.currencyIn.amount,
+        requestId: firstStep.requestId,
+      };
+    } catch (error: any) {
+      console.error('[Relay] Swap+bridge quote failed:', error);
+      throw new Error(`Failed to get Relay quote: ${error.message || error}`);
+    }
+  }
+
   /**
    * Get a quote for cross-chain swap using Relay's reverse quote
    * 
@@ -202,27 +296,27 @@ export class RelayService {
   /**
    * Get the status of a cross-chain swap/bridge
    * 
-   * @param requestId - Relay request ID from quote
-   * @param txHash - Transaction hash (optional, for logging)
+   * @param requestIdOrTxHash - Relay request ID (preferred) or transaction hash
    * @returns Status: PENDING, COMPLETED, or FAILED
    */
-  async getSwapStatus(requestId: string, txHash?: string): Promise<SwapStatus> {
+  async getSwapStatus(requestIdOrTxHash: string): Promise<SwapStatus> {
     try {
-      console.log(`[Relay] Checking swap status...`);
-      console.log(`  Request ID: ${requestId}`);
-      if (txHash) {
-        console.log(`  Tx Hash: ${txHash}`);
-      }
+      console.log(`[Relay] Checking swap status for: ${requestIdOrTxHash}`);
 
-      const response = await fetch(
-        `${RELAY_API_BASE_URL}/intents/status/v3?requestId=${requestId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      // Use intents/status endpoint with requestId
+      // If it's a requestId (starts with 0x and is 66 chars), use requestId param
+      // Otherwise try as txHash
+      const isRequestId = requestIdOrTxHash.startsWith('0x') && requestIdOrTxHash.length === 66;
+      const endpoint = isRequestId 
+        ? `${RELAY_API_BASE_URL}/intents/status/v3?requestId=${requestIdOrTxHash}`
+        : `${RELAY_API_BASE_URL}/intents/status/v3?txHash=${requestIdOrTxHash}`;
+      
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -230,29 +324,24 @@ export class RelayService {
         return 'PENDING'; // Assume pending on error
       }
 
-      const statusResponse = await response.json() as RelayStatusResponse;
+      const data = await response.json() as any;
+      
+      // intents/status/v3 returns status directly
+      const status = data.status;
 
-      console.log('[Relay] Status response:', statusResponse);
+      console.log('[Relay] Status response:', { status, data });
 
       // Map Relay status to our status
-      switch (statusResponse.status) {
-        case 'success':
-          console.log(`[Relay]  Swap COMPLETED`);
-          if (statusResponse.outTxHash) {
-            console.log(`  Destination tx: ${statusResponse.outTxHash}`);
-          }
-          return 'COMPLETED';
-
-        case 'failure':
-        case 'refund':
-          console.log(`[Relay]  Swap FAILED (status: ${statusResponse.status})`);
-          return 'FAILED';
-
-        case 'waiting':
-        case 'pending':
-        default:
-          console.log(`[Relay]  Swap still pending (status: ${statusResponse.status})`);
-          return 'PENDING';
+      // Relay statuses: waiting, submitted, pending, success, failure, refund
+      if (status === 'success') {
+        console.log(`[Relay] ✅ Swap COMPLETED`);
+        return 'COMPLETED';
+      } else if (status === 'failure' || status === 'refund') {
+        console.log(`[Relay] ❌ Swap FAILED (status: ${status})`);
+        return 'FAILED';
+      } else {
+        console.log(`[Relay] ⏳ Swap still pending (status: ${status || 'unknown'})`);
+        return 'PENDING';
       }
     } catch (error: any) {
       console.error('[Relay] Status check error:', error);

@@ -9,10 +9,16 @@ export { paymentMiddleware } from './middleware/payment-middleware.js';
 export type {
   PaymentRequirements,
   PaymentPayload,
+  PermitPayload,
+  AuthorizationPayload,
   VerifyResponse,
   SettleResponse,
   X402Response,
   PaymentPreferences,
+  Network,
 } from './types.js';
+
+// Export constants
+export { CHAIN_IDS, NETWORK_NAMES, USDC_ADDRESSES, WETH_ADDRESSES } from './types.js';
 
 export type { MiddlewareConfig } from './middleware/payment-middleware.js';

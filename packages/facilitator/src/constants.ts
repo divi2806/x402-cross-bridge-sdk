@@ -9,6 +9,43 @@ export const USDC_ADDRESSES: Record<number, string> = {
   137: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', // Polygon
 };
 
+// WETH addresses per chain
+export const WETH_ADDRESSES: Record<number, string> = {
+  1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+  8453: '0x4200000000000000000000000000000000000006',
+  42161: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+  10: '0x4200000000000000000000000000000000000006',
+  137: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
+};
+
+// Chain IDs
+export const CHAIN_IDS: Record<string, number> = {
+  'mainnet': 1,
+  'base': 8453,
+  'base-sepolia': 84532,
+  'arbitrum': 42161,
+  'optimism': 10,
+  'polygon': 137,
+  'bsc': 56,
+  'avalanche': 43114,
+  'zksync': 324,
+  'linea': 59144,
+};
+
+// Network names
+export const NETWORK_NAMES: Record<number, string> = {
+  1: 'mainnet',
+  8453: 'base',
+  84532: 'base-sepolia',
+  42161: 'arbitrum',
+  10: 'optimism',
+  137: 'polygon',
+  56: 'bsc',
+  43114: 'avalanche',
+  324: 'zksync',
+  59144: 'linea',
+};
+
 // Native token address (0x0 = ETH, MATIC, AVAX, etc.)
 export const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
 

@@ -1,21 +1,22 @@
 # @x402-crosschain/sdk
 
-> **Cross-chain payment SDK extending x402 protocol with instant multi-chain support**
+> **x402-compliant cross-chain payment SDK with Relay Network**
 
-Enable your application to accept payments in any token on any chain, with instant settlement in USDC on Base. Built on the x402 payment protocol with  instant bridging.
+Accept payments in any token on any chain. Customers pay with ETH, WETH, USDC, or any ERC-20 token. Merchants always receive USDC on Base. Gasless for customers (ERC-20 tokens).
 
 [![npm version](https://img.shields.io/npm/v/@x402-crosschain/sdk.svg)](https://www.npmjs.com/package/@x402-crosschain/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ---
 
-##**Key Features**
+## **Key Features**
 
-- **Instant Settlement** - 2-3 second cross-chain payments via Relay
-- **69+ Chains** - Support for Ethereum, Arbitrum, Base, Polygon, Solana, and more
-- **Any Token** - Accept payments in ETH, USDC, USDT, or any supported token
-- **Secure** - Built on x402 standard with on-chain settlement verification
-- **Merchant-Friendly** - Simple Express middleware integration
-- **Production Ready** - Used in production with proven reliability
+- **x402 Protocol Compliant** - Works with standard x402 clients
+- **Gasless Payments** - Customers sign permits, no gas needed (ERC-20)
+- **Any Token** - Accept ETH, WETH, USDC, DAI, or any ERC-2612 token
+- **Any Chain** - 10+ chains including Ethereum, Arbitrum, Base, Polygon, BNB Chain
+- **Instant Settlement** - 2-3 second bridging via Relay Network
+- **Simple Integration** - Express middleware for merchants
 
 ---
 
@@ -23,8 +24,6 @@ Enable your application to accept payments in any token on any chain, with insta
 
 ```bash
 npm install @x402-crosschain/sdk
-# or
-yarn add @x402-crosschain/sdk
 # or
 pnpm add @x402-crosschain/sdk
 ```
@@ -35,425 +34,221 @@ pnpm add @x402-crosschain/sdk
 
 ### **For Merchants (Backend)**
 
-Protect your API endpoints with payment requirements:
-
 ```typescript
 import express from 'express';
 import { paymentMiddleware } from '@x402-crosschain/sdk';
 
 const app = express();
 
-// Protect endpoint with payment requirement
 app.use(
   '/premium-content',
   paymentMiddleware({
-    recipient: '0xYourWalletAddress',
-    price: '1.00',                    // $1.00 in USDC on Base
+    payTo: '0xYourWalletAddress',
+    price: '$1.00',
     network: 'base',
-    facilitatorUrl: 'https://facilitator.yourdomain.com',
+    facilitatorUrl: 'http://localhost:3001',
   })
 );
 
 app.get('/premium-content', (req, res) => {
-  res.json({ content: 'This premium content is only accessible after payment' });
+  res.json({ 
+    content: 'Premium content unlocked!',
+    paidBy: (req as any).payment?.payer 
+  });
 });
 
-app.listen(3000, () => console.log('Server running on port 3000'));
+app.listen(3000);
 ```
 
-### **For Customers (Frontend)**
-
-Make cross-chain payments easily:
+### **For Customers (Node.js)**
 
 ```typescript
-import { payX402 } from '@x402-crosschain/sdk';
-import { privateKeyToAccount } from 'viem/accounts';
+import { createPaymentClient } from '@x402-crosschain/sdk';
 
-// Create wallet/signer
-const account = privateKeyToAccount('0xYourPrivateKey');
+// Create payment client with preferred token
+const client = createPaymentClient('0xYourPrivateKey', {
+  preferredChainId: 42161,  // Arbitrum
+  preferredToken: '0x0000000000000000000000000000000000000000', // Native ETH
+  preferredNetwork: 'arbitrum',
+});
 
-// Make API request
-const response = await fetch('https://api.example.com/premium-content');
+// Make request - SDK handles 402 payment automatically
+const response = await client.get('http://localhost:3000/premium-content');
+console.log(response.data);
+```
 
-// If payment required (402 status)
-if (response.status === 402) {
-  // Pay with any token on any chain
-  const result = await payX402(response, account, {
-    fromChainId: 42161,              // Arbitrum
-    fromToken: '0x0000000000000000000000000000000000000000', // Native ETH
-  });
+### **For Customers (Browser)**
 
-  console.log('Payment completed:', result.txHash);
-  
-  // Retry request - now authenticated
-  const paidResponse = await fetch('https://api.example.com/premium-content', {
-    headers: {
-      'X-Payment-Signature': result.signature,
-    },
-  });
-  
-  const content = await paidResponse.json();
-  console.log('Content:', content);
-}
+```typescript
+import { createBrowserPaymentClient } from '@x402-crosschain/sdk';
+
+// With MetaMask/Coinbase Wallet
+const client = createBrowserPaymentClient(walletClient, {
+  preferredChainId: 8453,
+  preferredToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+});
+
+const response = await client.get('https://api.example.com/premium');
 ```
 
 ---
 
-##**Architecture**
+## **How It Works**
+
+### **ERC-20 Tokens (Gasless for Customer)**
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Your Application                     │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  Merchant Backend          Customer Frontend           │
-│  (Express + SDK)           (Browser + SDK)              │
-│         │                          │                    │
-│         └──────────┬───────────────┘                    │
-│                    │                                    │
-└────────────────────┼────────────────────────────────────┘
-                     │
-                     ▼
-        ┌────────────────────────┐
-        │   x402 Facilitator     │
-        │  (our facilitator or   │
-        │   hosted service)      │
-        └────────────────────────┘
-                     │
-                     ▼
-        ┌────────────────────────┐
-        │    Relay Network       │
-        │ (Instant bridging via  │
-        │  liquidity pools)      │
-        └────────────────────────┘
-                     │
-        ┌────────────┴────────────┐
-        ▼                         ▼
-   Arbitrum                    Base
-   (Customer pays)            (Merchant receives)
-   ETH, USDC, etc.           USDC
+1. Customer requests protected resource
+2. Server returns 402 with payment requirements
+3. Customer signs ERC-2612 permit or EIP-3009 authorization (NO GAS)
+4. Customer retries with X-PAYMENT header
+5. Facilitator verifies signature
+6. Facilitator takes tokens via permit
+7. Facilitator swaps + bridges via Relay → USDC on Base
+8. Merchant receives USDC
 ```
+
+### **Native ETH/BNB (Customer Pays Gas)**
+
+```
+1. Customer requests protected resource
+2. Server returns 402 with payment requirements
+3. Customer sends ETH tx to Relay
+4. Relay swaps ETH → USDC + bridges to Base
+5. Merchant receives USDC
+```
+
+---
+
+## **Supported Tokens**
+
+| Token Type | Gasless? | How It Works |
+|------------|----------|--------------|
+| **USDC** | ✅ Yes | EIP-3009 TransferWithAuthorization |
+| **WETH, DAI, etc.** | ✅ Yes | ERC-2612 Permit |
+| **Native ETH/BNB/MATIC** | ❌ No | Customer sends tx to Relay |
+
+---
+
+## **Supported Chains**
+
+| Chain | ID | Native Token |
+|-------|-----|--------------|
+| Ethereum | 1 | ETH |
+| Base | 8453 | ETH |
+| Arbitrum | 42161 | ETH |
+| Optimism | 10 | ETH |
+| Polygon | 137 | MATIC |
+| BNB Chain | 56 | BNB |
+| Avalanche | 43114 | AVAX |
+| zkSync | 324 | ETH |
+| Linea | 59144 | ETH |
 
 ---
 
 ## **API Reference**
 
-### **Merchant Middleware**
+### **paymentMiddleware(config)**
 
-#### `paymentMiddleware(config: PaymentConfig)`
-
-Protects Express routes with payment requirements.
-
-**Parameters:**
+Express middleware for protecting routes with payment requirements.
 
 ```typescript
-interface PaymentConfig {
-  recipient: string;           // Wallet address to receive payments
-  price: string;               // Price in USD (e.g., "1.00")
-  network: 'base' | 'base-sepolia'; // Settlement network
-  facilitatorUrl: string;      // Facilitator endpoint URL
+interface MiddlewareConfig {
+  payTo: string;           // Merchant wallet address
+  price: string;           // Price (e.g., '$0.01', '$10.00')
+  network: string;         // Settlement network ('base')
+  facilitatorUrl: string;  // Facilitator URL
+  description?: string;    // Optional description
 }
 ```
 
-**Example:**
+### **createPaymentClient(privateKey, preferences)**
+
+Create a payment client for Node.js applications.
 
 ```typescript
-app.use(
-  '/api/premium',
-  paymentMiddleware({
-    recipient: '0x742d35Cc6634C0532925a3b8D9d4DB0a2D7DD5B3',
-    price: '5.00',
-    network: 'base',
-    facilitatorUrl: 'https://facilitator.yourdomain.com',
-  })
-);
-```
-
----
-
-### **Customer Payment Client**
-
-#### `payX402(response, signer, userPreference)`
-
-Completes a cross-chain payment for a 402 Payment Required response.
-
-**Parameters:**
-
-```typescript
-interface UserPaymentPreference {
-  fromChainId: number;         // Source chain ID (e.g., 42161 for Arbitrum)
-  fromToken: string;           // Token address (0x0000... for native)
-}
-
-// Signer can be:
-// - viem Account: privateKeyToAccount('0x...')
-// - ethers Signer: new Wallet('0x...', provider)
-```
-
-**Returns:**
-
-```typescript
-interface PaymentResult {
-  success: boolean;
-  txHash: string;              // Transaction hash on source chain
-  paymentId: string;           // Unique payment identifier
-  signature: string;           // Payment proof for subsequent requests
+interface PaymentPreferences {
+  preferredChainId?: number;   // Source chain ID
+  preferredToken?: string;     // Source token address
+  preferredNetwork?: string;   // Source network name
 }
 ```
 
-**Example:**
+### **createBrowserPaymentClient(walletClient, preferences)**
+
+Create a payment client for browser applications with MetaMask/Coinbase Wallet.
+
+---
+
+## **Token Addresses**
 
 ```typescript
-const result = await payX402(response, signer, {
-  fromChainId: 42161,          // Arbitrum
-  fromToken: '0x0000000000000000000000000000000000000000', // ETH
-});
+// Native token (ETH, BNB, MATIC, etc.)
+const NATIVE = '0x0000000000000000000000000000000000000000';
 
-if (result.success) {
-  console.log('Payment successful:', result.txHash);
-  // Use result.signature for subsequent authenticated requests
-}
+// USDC
+const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const USDC_ARBITRUM = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
+
+// WETH
+const WETH_ARBITRUM = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1';
+const WETH_BASE = '0x4200000000000000000000000000000000000006';
 ```
 
 ---
 
-##  **Supported Chains**
+## **Examples**
 
-The SDK supports 69+ chains via Relay Network:
-
-### **Major EVM Chains**
-- Ethereum (1)
-- Base (8453)
-- Arbitrum (42161)
-- Optimism (10)
-- Polygon (137)
-- BNB Chain (56)
-- Avalanche (43114)
-- And 60+ more...
-
-### **Multi-VM Support**
-- ✅ EVM chains
-- ✅ Solana
-- ✅ Bitcoin
-- ✅ Sui
-- ✅ Tron
-
-See full list: https://docs.relay.link/resources/supported-chains
-
----
-
-##  **Token Support**
-
-### **Source Chains (What customers can pay with)**
-- Native tokens (ETH, MATIC, AVAX, etc.)
-- USDC
-- USDT
-- WETH
-- DAI
-- And more...
-
-### **Settlement Chain (What merchants receive)**
-- Always settles in **USDC on Base**
-- Instant finality (~2 seconds)
-- Low gas costs
-
----
-
-##  **Advanced Configuration**
-
-### **Dynamic Pricing**
+### **Pay with Native ETH on Arbitrum**
 
 ```typescript
-app.use(
-  '/api/content/:id',
-  paymentMiddleware({
-    recipient: '0xYourAddress',
-    price: async (req) => {
-      // Fetch dynamic pricing from database
-      const content = await db.getContent(req.params.id);
-      return content.price.toString();
-    },
-    network: 'base',
-    facilitatorUrl: process.env.FACILITATOR_URL,
-  })
-);
-```
-
-### **Custom Token Selection**
-
-```typescript
-// Customer chooses preferred payment token
-const result = await payX402(response, signer, {
-  fromChainId: 137,            // Polygon
-  fromToken: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // USDC on Polygon
+const client = createPaymentClient(privateKey, {
+  preferredChainId: 42161,
+  preferredToken: '0x0000000000000000000000000000000000000000',
+  preferredNetwork: 'arbitrum',
 });
 ```
 
-### **Error Handling**
+### **Pay with USDC on Base (Same Chain)**
 
 ```typescript
-try {
-  const result = await payX402(response, signer, userPreference);
-  
-  if (!result.success) {
-    console.error('Payment failed');
-  }
-} catch (error) {
-  if (error.message.includes('insufficient funds')) {
-    console.error('User does not have enough tokens');
-  } else if (error.message.includes('user rejected')) {
-    console.error('User cancelled transaction');
-  } else {
-    console.error('Payment error:', error);
-  }
-}
-```
-
----
-
-##**Self-Hosting the Facilitator**
-
-You can run your own facilitator for full control:
-
-```typescript
-import { startFacilitator } from '@x402-crosschain/facilitator';
-
-await startFacilitator({
-  port: 3001,
-  baseRpcUrl: 'https://mainnet.base.org',
-  paymentSettlementAddress: '0xYourContractAddress',
-  settlerPrivateKey: process.env.SETTLER_PRIVATE_KEY,
+const client = createPaymentClient(privateKey, {
+  preferredChainId: 8453,
+  preferredToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  preferredNetwork: 'base',
 });
 ```
 
-See [Facilitator Documentation](../facilitator/README.md) for details.
-
----
-
-##  **Fee Structure**
-
-### **Cross-Chain Payment Costs**
-
-| Component | Cost | Who Pays |
-|-----------|------|----------|
-| **Bridge Fee** | 0.1-0.3% | Customer |
-| **Gas (Source Chain)** | $0.01-0.10 | Customer |
-| **Gas (Destination)** | Included | Relay |
-| **Settlement Gas** | $0.001 | Facilitator |
-
-### **Recommended Minimum Payment**
-
-- **Minimum**: $1.00 (15% total fee)
-- **Optimal**: $10+ (2-3% total fee)
-- **Not recommended**: < $0.50 (fees dominate)
-
-**Example:**
-```
-Payment: $10.00
-Bridge fee: $0.02 (0.2%)
-Gas costs: $0.03
-Total cost: $10.05
-Effective fee: 0.5%
-```
-
----
-
-##  **Security**
-
-### **Payment Verification**
-- All payments verified on-chain
-- Settlement contract ensures atomicity
-- Non-custodial (no funds held by facilitator)
-
-### **Best Practices**
-```typescript
-// ✅ Good: Use environment variables
-facilitatorUrl: process.env.FACILITATOR_URL,
-
-// ❌ Bad: Hardcode private keys
-const signer = new Wallet('0xhardcodedkey...');
-
-// ✅ Good: Use secure key management
-const signer = new Wallet(process.env.PRIVATE_KEY, provider);
-```
-
----
-
-##  **Testing**
-
-### **Test Networks**
+### **Pay with WETH on Arbitrum**
 
 ```typescript
-// Use Base Sepolia for testing
-paymentMiddleware({
-  recipient: '0xTestWallet',
-  price: '0.01',
-  network: 'base-sepolia',
-  facilitatorUrl: 'https://testnet-facilitator.yourdomain.com',
+const client = createPaymentClient(privateKey, {
+  preferredChainId: 42161,
+  preferredToken: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+  preferredNetwork: 'arbitrum',
 });
 ```
 
-### **Get Test Tokens**
+---
 
-- **Base Sepolia ETH**: https://www.alchemy.com/faucets/base-sepolia
-- **Arbitrum Sepolia ETH**: https://faucets.chain.link/arbitrum-sepolia
+## **Testing**
+
+```bash
+# Start facilitator
+cd packages/facilitator && pnpm dev
+
+# Start merchant server
+cd examples/merchant-hosted && pnpm dev
+
+# Run customer client
+cd examples/customer-client && pnpm dev
+```
 
 ---
 
-##  **Examples**
+## **License**
 
-### **E-commerce API**
-
-```typescript
-import express from 'express';
-import { paymentMiddleware } from '@x402-crosschain/sdk';
-
-const app = express();
-
-// Product catalog
-const products = {
-  'prod_1': { name: 'Premium Article', price: '2.00' },
-  'prod_2': { name: 'Video Course', price: '49.00' },
-};
-
-// Dynamic payment per product
-app.use(
-  '/api/product/:id',
-  paymentMiddleware({
-    recipient: process.env.MERCHANT_WALLET,
-    price: (req) => products[req.params.id].price,
-    network: 'base',
-    facilitatorUrl: process.env.FACILITATOR_URL,
-  })
-);
-
-app.get('/api/product/:id', (req, res) => {
-  const product = products[req.params.id];
-  res.json({ product: product.name, delivered: true });
-});
-```
-
-### **Creator Marketplace**
-
-```typescript
-// Protect creator content
-app.use(
-  '/api/creator/:creatorId/content/:contentId',
-  paymentMiddleware({
-    recipient: async (req) => {
-      // Get creator's wallet from database
-      const creator = await db.getCreator(req.params.creatorId);
-      return creator.walletAddress;
-    },
-    price: async (req) => {
-      const content = await db.getContent(req.params.contentId);
-      return content.price;
-    },
-    network: 'base',
-    facilitatorUrl: process.env.FACILITATOR_URL,
-  })
-);
-```
+MIT License
 
 ---
 
@@ -462,28 +257,20 @@ app.use(
 - **GitHub Issues**: https://github.com/divi2806/x402-cross-bridge-sdk/issues
 - **Email**: divyansh2824@gmail.com
 
-
 ---
 
-##  **License**
+## **Changelog**
 
-MIT License
-
----
-
----
-
-##  **Changelog**
+### v2.0.0 (December 2025)
+- **x402 Protocol Compliance** - Full compatibility with x402 standard
+- **Gasless Payments** - EIP-3009 and ERC-2612 signature support
+- **Any Token Support** - Accept any ERC-20 token with permit support
+- **Native Token Support** - Accept ETH, BNB, MATIC via Relay
+- **Multi-Chain** - Added BNB Chain, Avalanche, zkSync, Linea
+- **Simplified API** - New `createPaymentClient` and `createBrowserPaymentClient`
 
 ### v1.0.0
 - Initial release
-- Support for 69+ chains via Relay
-- Express middleware for merchants
-- Browser client for customers
-- Self-hosted facilitator option
-- Comprehensive documentation
+- Basic cross-chain support via Relay
 
-##  **Reference**
- - Refer to facilitator on how to integrate/use the cross chain facilitator - https://www.npmjs.com/package/@x402-crosschain/facilitator
 ---
-

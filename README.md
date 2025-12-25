@@ -1,12 +1,12 @@
 # x402 Cross-Chain Payment SDK
 
-> **Accept payments from any blockchain, receive USDC on Base — all in 2-3 seconds**
+> **Accept payments from any blockchain, receive USDC on Base — gasless for customers**
 
 [![npm version](https://img.shields.io/npm/v/@x402-crosschain/sdk.svg)](https://www.npmjs.com/package/@x402-crosschain/sdk)
 [![npm version](https://img.shields.io/npm/v/@x402-crosschain/facilitator.svg)](https://www.npmjs.com/package/@x402-crosschain/facilitator)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Fully x402-compatible** cross-chain payment solution that extends the x402 protocol to support payments from **69+ blockchain networks** with instant settlement via Relay Network.
+**Fully x402-compatible** cross-chain payment solution. Customers pay with any token on any chain. Merchants always receive USDC on Base. **Gasless for ERC-20 tokens** via EIP-3009/ERC-2612 signatures.
 
 ---
 
@@ -16,9 +16,10 @@ The **x402 Cross-Chain Payment SDK** enables merchants to accept payments in **a
 
 ### Key Features
 
+- ✨ **Gasless Payments** - Customers sign permits (ERC-20), no gas needed
 - ⚡ **Instant Settlement** - 2-3 second cross-chain payments via Relay Network
-- 🌐 **69+ Chains** - Ethereum, Base, Arbitrum, Optimism, Polygon, Solana, and more
-- 💰 **Any Token** - Accept ETH, USDC, USDT, or any supported token
+- 🌐 **10+ Chains** - Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, and more
+- 💰 **Any Token** - Accept ETH, USDC, WETH, DAI, or any ERC-2612 token
 - ✅ **x402 Compliant** - Works with `x402-express`, `x402-axios`, `x402-fetch`, and all standard x402 packages
 - 🔒 **Non-Custodial** - No funds held, direct on-chain settlement
 - 🚀 **Production Ready** - Docker support, health checks, monitoring
@@ -103,33 +104,7 @@ app.listen(3000);
 
 ### For Customers (Making Payments)
 
-**Option 1: Use Standard x402 Packages**
-
-Works with any x402-compatible client:
-
-```bash
-npm install x402-axios viem
-```
-
-```typescript
-import { withPaymentInterceptor } from 'x402-axios';
-import axios from 'axios';
-import { privateKeyToAccount } from 'viem/accounts';
-import { base } from 'viem/chains';
-
-const account = privateKeyToAccount('0xYourPrivateKey');
-
-const client = withPaymentInterceptor(
-  axios.create({ baseURL: 'https://merchant.com' }),
-  account
-);
-
-// Automatically handles 402 payment flow
-const response = await client.get('/premium-content');
-console.log(response.data);
-```
-
-**Option 2: Use Our SDK**
+**Option 1: Use Our SDK (Recommended)**
 
 ```bash
 npm install @x402-crosschain/sdk
@@ -137,14 +112,26 @@ npm install @x402-crosschain/sdk
 
 ```typescript
 import { createPaymentClient } from '@x402-crosschain/sdk';
-import { privateKeyToAccount } from 'viem/accounts';
 
-const account = privateKeyToAccount('0xYourPrivateKey');
-const client = createPaymentClient(account);
+// Pay with USDC on Arbitrum (gasless - just sign a message!)
+const client = createPaymentClient('0xYourPrivateKey', {
+  preferredChainId: 42161,
+  preferredToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC
+});
 
-// Automatically handles cross-chain payments
+// Automatically handles x402 payment flow
 const response = await client.get('https://merchant.com/premium-content');
 console.log(response.data);
+```
+
+**Pay with Native ETH:**
+
+```typescript
+// Pay with native ETH on Arbitrum (sends transaction)
+const client = createPaymentClient('0xYourPrivateKey', {
+  preferredChainId: 42161,
+  preferredToken: '0x0000000000000000000000000000000000000000', // Native ETH
+});
 ```
 
 **Browser (MetaMask/Wallet):**
@@ -154,9 +141,12 @@ import { createBrowserPaymentClient } from '@x402-crosschain/sdk';
 import { useWalletClient } from 'wagmi';
 
 const { data: walletClient } = useWalletClient();
-const client = createBrowserPaymentClient(walletClient!);
+const client = createBrowserPaymentClient(walletClient!, {
+  preferredChainId: 42161,
+  preferredToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC (gasless)
+});
 
-// User approves payment in MetaMask
+// User signs message (no gas!) or approves tx (native token)
 const response = await client.get('https://merchant.com/premium-content');
 ```
 
@@ -194,65 +184,77 @@ This SDK is **100% x402 compliant** and works with all standard x402 packages:
 
 ### How It Works
 
-1. **Customer** pays with any token on any chain (e.g., ETH on Arbitrum)
-2. **Relay Network** bridges and swaps to USDC on Base (2-3 seconds)
-3. **Merchant** receives USDC on Base
-4. **Customer** gets their content
+**For ERC-20 Tokens (USDC, WETH, DAI) - Gasless ✨**
+
+1. **Customer** signs a permit message (no gas!)
+2. **Facilitator** executes transfer + Relay bridge
+3. **Merchant** receives USDC on Base (2-3 seconds)
+
+**For Native Tokens (ETH, BNB, MATIC) - Pays Gas**
+
+1. **Customer** sends transaction to Relay
+2. **Relay** swaps + bridges to USDC on Base
+3. **Merchant** receives USDC on Base (2-3 seconds)
 
 ### Supported Chains
 
-**69+ chains** via Relay Network:
-
-**EVM Chains:**
-- Ethereum, Base, Arbitrum, Optimism, Polygon
-- BNB Chain, Avalanche, Blast, zkSync Era
-- Linea, Scroll, Mantle, Mode, Zora
-- And 50+ more...
-
-**Non-EVM Chains:**
-- Solana
-- Bitcoin
-- And more coming soon...
+| Chain | ID | Native Token |
+|-------|-----|--------------|
+| Ethereum | 1 | ETH |
+| Base | 8453 | ETH |
+| Arbitrum | 42161 | ETH |
+| Optimism | 10 | ETH |
+| Polygon | 137 | MATIC |
+| BNB Chain | 56 | BNB |
+| Avalanche | 43114 | AVAX |
+| zkSync | 324 | ETH |
+| Linea | 59144 | ETH |
 
 ### Supported Tokens
 
-- **Native tokens**: ETH, MATIC, AVAX, etc.
-- **Stablecoins**: USDC, USDT, DAI
-- **Any ERC-20 token** on supported chains
+| Token Type | Gasless? | How It Works |
+|------------|----------|--------------|
+| **USDC** | ✅ Yes | EIP-3009 TransferWithAuthorization |
+| **WETH, DAI, etc.** | ✅ Yes | ERC-2612 Permit |
+| **Native ETH/BNB** | ❌ No | Customer sends tx to Relay |
 
 ---
 
 ## 🏗️ Architecture
 
+### ERC-20 Flow (Gasless for Customer)
+
 ```
 ┌─────────────┐         ┌──────────────┐         ┌──────────────┐
 │   Customer  │         │   Merchant   │         │  Facilitator │
-│  (Browser/  │         │    Server    │         │  (Relay)     │
-│   Node.js)  │         │              │         │              │
+│  (Browser)  │         │    Server    │         │              │
 └──────┬──────┘         └───────┬──────┘         └──────┬───────┘
        │                        │                        │
        │ 1. GET /premium        │                        │
        │───────────────────────>│                        │
        │                        │                        │
        │ 2. HTTP 402            │                        │
-       │    X-Payment-Required  │                        │
+       │    Payment Required    │                        │
        │<───────────────────────│                        │
        │                        │                        │
-       │ 3. Pay with ETH        │                        │
-       │    on Arbitrum         │         ⚡ Relay       │
-       │────────────────────────┼──────────────────────>│
-       │                        │      (2-3 seconds)    │
+       │ 3. Sign permit         │                        │
+       │    (NO GAS! ✨)        │                        │
        │                        │                        │
-       │                        │ 4. Merchant receives  │
-       │                        │    USDC on Base        │
-       │                        │<───────────────────────│
-       │                        │                        │
-       │ 5. POST /verify        │                        │
+       │ 4. Retry with          │                        │
        │    X-PAYMENT header    │                        │
-       │────────────────────────┼──────────────────────>│
+       │───────────────────────>│                        │
        │                        │                        │
-       │ 6. { isValid: true }   │                        │
-       │<───────────────────────┼────────────────────────│
+       │                        │ 5. Verify + Settle     │
+       │                        │───────────────────────>│
+       │                        │                        │
+       │                        │    Facilitator:        │
+       │                        │    - Execute permit    │
+       │                        │    - Take tokens       │
+       │                        │    - Relay swap+bridge │
+       │                        │    - USDC → Merchant   │
+       │                        │                        │
+       │                        │ 6. { success: true }   │
+       │                        │<───────────────────────│
        │                        │                        │
        │ 7. Premium content     │                        │
        │<───────────────────────│                        │
@@ -284,37 +286,28 @@ npm install @x402-crosschain/sdk
 
 ### Option 2: Self-Host Your Own Facilitator
 
-**Install both packages:**
+**Install facilitator:**
 
 ```bash
-npm install @x402-crosschain/sdk @x402-crosschain/facilitator
+npm install @x402-crosschain/facilitator
+```
+
+**Create `.env`:**
+
+```bash
+SETTLER_PRIVATE_KEY=0xYourPrivateKey  # Wallet to pay gas for settlements
+BASE_RPC_URL=https://mainnet.base.org
+PORT=3001
 ```
 
 **Start facilitator:**
 
-```typescript
-import { startFacilitator } from '@x402-crosschain/facilitator';
-
-await startFacilitator({
-  port: 3001,
-  baseRpcUrl: 'https://mainnet.base.org',
-  paymentSettlementAddress: '0xYourContractAddress',
-  settlerPrivateKey: process.env.SETTLER_PRIVATE_KEY,
-});
+```bash
+cd packages/facilitator
+pnpm dev
 ```
 
-**Use with your middleware:**
-
-```typescript
-import { paymentMiddleware } from '@x402-crosschain/sdk';
-
-app.use('/premium', paymentMiddleware({
-  payTo: '0xYourAddress',
-  price: '$0.01',
-  network: 'base',
-  facilitatorUrl: 'http://localhost:3001', // Your facilitator
-}));
-```
+**Note:** The facilitator wallet needs ETH on each supported chain to pay gas for ERC-20 settlements.
 
 See [USER_INSTALLATION_GUIDE.md](USER_INSTALLATION_GUIDE.md) for complete setup instructions.
 

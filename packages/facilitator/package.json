@@ -1,7 +1,7 @@
 {
   "name": "@x402-crosschain/facilitator",
-  "version": "1.0.1",
-  "description": "x402-compatible cross-chain payment facilitator with Relay Network support",
+  "version": "2.0.0",
+  "description": "x402-compliant facilitator for gasless cross-chain payments with Relay Network",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

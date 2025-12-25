@@ -10,19 +10,20 @@ const MERCHANT_ADDRESS = process.env.MERCHANT_ADDRESS || '0x00000000000000000000
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://localhost:3001';
 
 console.log('='.repeat(70));
-console.log('Merchant API - x402 with Relay Cross-Chain');
+console.log('x402 Merchant Server - Standard Compatible');
 console.log('='.repeat(70));
 console.log(`Merchant Address: ${MERCHANT_ADDRESS}`);
 console.log(`Facilitator URL:  ${FACILITATOR_URL}`);
 console.log('='.repeat(70));
 console.log('');
-console.log('Powered by Relay Network (2-3s instant settlement)');
+console.log('x402 Protocol Features:');
+console.log('  - EIP-3009 TransferWithAuthorization (USDC)');
+console.log('  - ERC-2612 Permit (other ERC-20 tokens)');
+console.log('  - Gasless for customers (sign only, no tx)');
+console.log('  - Cross-chain via Relay (AnySpend-style)');
 console.log('');
-console.log('This merchant accepts payments from ANY chain!');
-console.log('Customers can pay with:');
-console.log('  - ETH on Ethereum, Arbitrum, Optimism, Base, etc.');
-console.log('  - USDC/USDT on any supported chain');
-console.log('  - Native tokens on 69+ chains');
+console.log('Compatible with standard x402 clients:');
+console.log('  - x402-axios, x402-fetch, x402-express');
 console.log('');
 console.log('Merchant always receives: USDC on Base');
 console.log('='.repeat(70));
