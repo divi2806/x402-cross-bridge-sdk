@@ -536,7 +536,7 @@ docker ps | grep facilitator
 
 ---
 
-## 📈 **Scaling**
+##  **Scaling**
 
 ### **Horizontal Scaling**
 
@@ -560,7 +560,7 @@ await redis.set(`payment:${paymentId}`, JSON.stringify(payment));
 
 ---
 
-## 🔄 **Upgrading**
+##  **Upgrading**
 
 ### **Version Migration**
 
@@ -626,6 +626,9 @@ MIT License
 
 - **GitHub Issues**: https://github.com/divi2806/x402-cross-bridge-sdk/issues
 - **Email**: divyansh2824@gmail.com
+
+##  **Reference**
+ - Refer to facilitator on how to integrate/use the cross chain sdk to integrate with merchants - https://www.npmjs.com/package/@x402-crosschain/sdk
 
 ---
 
