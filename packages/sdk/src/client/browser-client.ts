@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
 import type { WalletClient, Hex } from 'viem';
 import { keccak256, toHex } from 'viem';
 import type { PaymentRequirements, PaymentPayload, PaymentPreferences, X402Response } from '../types.js';
-import { CHAIN_IDS, NETWORK_NAMES, USDC_ADDRESSES } from '../types.js';
+import { CHAIN_IDS, NETWORK_NAMES, USDC_ADDRESSES, PERMIT2_ADDRESS } from '../types.js';
 
 // EIP-3009 TransferWithAuthorization types for USDC
 const AUTHORIZATION_TYPES = {
@@ -16,20 +16,24 @@ const AUTHORIZATION_TYPES = {
   ],
 } as const;
 
-// ERC-2612 Permit types
-const PERMIT_TYPES = {
-  Permit: [
-    { name: 'owner', type: 'address' },
+// Permit2 SignatureTransfer types for EIP-712 signing
+// Domain: { name: 'Permit2', chainId, verifyingContract: PERMIT2_ADDRESS }
+const PERMIT2_TRANSFER_TYPES = {
+  PermitTransferFrom: [
+    { name: 'permitted', type: 'TokenPermissions' },
     { name: 'spender', type: 'address' },
-    { name: 'value', type: 'uint256' },
     { name: 'nonce', type: 'uint256' },
     { name: 'deadline', type: 'uint256' },
+  ],
+  TokenPermissions: [
+    { name: 'token', type: 'address' },
+    { name: 'amount', type: 'uint256' },
   ],
 } as const;
 
 /**
  * Create an x402-compatible payment client for BROWSER use with MetaMask/Coinbase Wallet
- * Signs ERC-2612 permits or EIP-3009 authorizations (gasless for customer)
+ * Signs Permit2 transfers or EIP-3009 authorizations (gasless for customer)
  */
 export function createBrowserPaymentClient(
   walletClient: WalletClient,
@@ -157,15 +161,14 @@ async function createBrowserSignedPayment(
   // Get spender address (facilitator)
   const spender = paymentRequirements.extra?.facilitatorAddress || paymentRequirements.payTo;
 
-  // Get token name and version for EIP-712 domain
-  const tokenName = paymentRequirements.extra?.name || (isUsdc ? 'USD Coin' : 'Unknown Token');
-  const tokenVersion = paymentRequirements.extra?.version || '2';
-
   const deadline = BigInt(Math.floor(Date.now() / 1000) + (paymentRequirements.maxTimeoutSeconds || 300));
 
   if (isUsdc) {
     // EIP-3009 TransferWithAuthorization for USDC
     console.log('[Browser Payment] Signing EIP-3009 authorization (USDC)...');
+
+    const tokenName = paymentRequirements.extra?.name || 'USD Coin';
+    const tokenVersion = paymentRequirements.extra?.version || '2';
 
     // Generate random nonce
     const nonce = keccak256(toHex(Date.now().toString() + Math.random().toString()));
@@ -211,23 +214,26 @@ async function createBrowserSignedPayment(
       },
     };
   } else {
-    // ERC-2612 Permit for other tokens
-    console.log('[Browser Payment] Signing ERC-2612 permit...');
+    // Permit2 SignatureTransfer for non-USDC ERC-20 tokens (WETH, DAI, etc.)
+    // Requires: token.approve(PERMIT2_ADDRESS, maxUint256) done once by the user
+    console.log('[Browser Payment] Signing Permit2 transfer...');
 
-    // For browser, we'll use nonce 0 (should query from contract in production)
-    const nonce = BigInt(0);
+    // Random nonce - Permit2 uses unordered bitmap nonces (no sequential front-running)
+    const nonce = BigInt(keccak256(toHex(Date.now().toString() + Math.random().toString())));
 
+    // Permit2 domain is always the canonical Permit2 contract - not the token
     const domain = {
-      name: tokenName,
-      version: tokenVersion,
+      name: 'Permit2',
       chainId: paymentRequirements.extra?.chainId || chainId,
-      verifyingContract: (paymentRequirements.extra?.verifyingContract || tokenAddress) as `0x${string}`,
+      verifyingContract: PERMIT2_ADDRESS as `0x${string}`,
     };
 
     const message = {
-      owner: userAddress as `0x${string}`,
+      permitted: {
+        token: tokenAddress as `0x${string}`,
+        amount: BigInt(amount),
+      },
       spender: spender as `0x${string}`,
-      value: BigInt(amount),
       nonce,
       deadline,
     };
@@ -235,8 +241,8 @@ async function createBrowserSignedPayment(
     const signature = await walletClient.signTypedData({
       account: walletClient.account!,
       domain,
-      types: PERMIT_TYPES,
-      primaryType: 'Permit',
+      types: PERMIT2_TRANSFER_TYPES,
+      primaryType: 'PermitTransferFrom',
       message,
     });
 
@@ -245,10 +251,11 @@ async function createBrowserSignedPayment(
       scheme: 'exact',
       network: NETWORK_NAMES[chainId] || 'base',
       payload: {
-        permit: {
+        permit2: {
           owner: userAddress,
           spender,
-          value: amount,
+          token: tokenAddress,
+          amount,
           nonce: nonce.toString(),
           deadline: deadline.toString(),
         },

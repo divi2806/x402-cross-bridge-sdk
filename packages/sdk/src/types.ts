@@ -26,19 +26,22 @@ export interface PaymentRequirements {
     chainId?: number;
     verifyingContract?: string;
     facilitatorAddress?: string;
-    signatureType?: 'permit' | 'authorization';
+    signatureType?: 'permit2' | 'authorization';
   };
 }
 
 /**
- * ERC-2612 Permit payload - for non-USDC ERC-20 tokens
+ * Permit2 SignatureTransfer payload - for non-USDC ERC-20 tokens (including WETH)
+ * Uses Uniswap's canonical Permit2 contract instead of per-token ERC-2612 permit()
+ * Works with any ERC-20 that has approved the Permit2 contract
  */
-export interface PermitPayload {
-  owner: string;
-  spender: string;
-  value: string;
-  nonce: string;
-  deadline: string;
+export interface Permit2Payload {
+  owner: string;    // Token owner / customer wallet
+  spender: string;  // Facilitator address (must match spender in signature)
+  token: string;    // Token contract address (e.g. WETH, DAI)
+  amount: string;   // Max amount permitted (in token's smallest unit)
+  nonce: string;    // Random uint256 - Permit2 uses unordered bitmap nonces (no front-running)
+  deadline: string; // Unix timestamp after which signature is invalid
 }
 
 /**
@@ -55,15 +58,15 @@ export interface AuthorizationPayload {
 
 /**
  * x402 Payment Payload - standard format compatible with all x402 clients
- * Supports both ERC-2612 permit and EIP-3009 authorization schemes
+ * Supports Permit2 (non-USDC ERC-20s including WETH), EIP-3009 (USDC), and native ETH
  */
 export interface PaymentPayload {
   x402Version: number;
   scheme: string;
   network: string;
   payload: {
-    // ERC-2612 Permit (for non-USDC ERC-20 tokens)
-    permit?: PermitPayload;
+    // Permit2 SignatureTransfer (for non-USDC ERC-20 tokens, including WETH)
+    permit2?: Permit2Payload;
     // EIP-3009 Authorization (for USDC)
     authorization?: AuthorizationPayload;
     // Native ETH payment (customer sends tx, not gasless)
@@ -133,6 +136,10 @@ export const NETWORK_NAMES: Record<number, string> = {
   324: 'zksync',
   59144: 'linea',
 };
+
+// Permit2 canonical contract - same address on all EVM chains (deployed by Uniswap)
+// Any ERC-20 (including WETH) that has approved this address can use gasless Permit2 transfers
+export const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const;
 
 // USDC addresses per chain
 export const USDC_ADDRESSES: Record<number, string> = {

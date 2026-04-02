@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { privateKeyToAccount } from 'viem/accounts';
-import { createWalletClient, createPublicClient, http, type Address, type Hex, keccak256, toHex } from 'viem';
+import { createWalletClient, http, type Address, type Hex, keccak256, toHex } from 'viem';
 import { arbitrum, base, optimism, polygon, mainnet, baseSepolia } from 'viem/chains';
 import type { 
   PaymentRequirements, 
@@ -9,7 +9,7 @@ import type {
   X402Response,
   Network,
 } from '../types.js';
-import { CHAIN_IDS, NETWORK_NAMES, USDC_ADDRESSES } from '../types.js';
+import { CHAIN_IDS, NETWORK_NAMES, USDC_ADDRESSES, PERMIT2_ADDRESS } from '../types.js';
 
 // Chain mapping
 const CHAIN_MAP: Record<number, any> = {
@@ -34,14 +34,19 @@ const RPC_URLS: Record<number, string> = {
   59144: 'https://rpc.linea.build',
 };
 
-// ERC-2612 Permit types for EIP-712 signing
-const PERMIT_TYPES = {
-  Permit: [
-    { name: 'owner', type: 'address' },
+// Permit2 SignatureTransfer types for EIP-712 signing
+// Domain: { name: 'Permit2', chainId, verifyingContract: PERMIT2_ADDRESS }
+// Works with any ERC-20 including WETH - no per-token permit() needed
+const PERMIT2_TRANSFER_TYPES = {
+  PermitTransferFrom: [
+    { name: 'permitted', type: 'TokenPermissions' },
     { name: 'spender', type: 'address' },
-    { name: 'value', type: 'uint256' },
     { name: 'nonce', type: 'uint256' },
     { name: 'deadline', type: 'uint256' },
+  ],
+  TokenPermissions: [
+    { name: 'token', type: 'address' },
+    { name: 'amount', type: 'uint256' },
   ],
 } as const;
 
@@ -59,7 +64,7 @@ const AUTHORIZATION_TYPES = {
 
 /**
  * Create an x402-compatible payment client
- * Signs ERC-2612 permits or EIP-3009 authorizations (gasless for customer)
+ * Signs Permit2 transfers or EIP-3009 authorizations (gasless for customer)
  * Facilitator executes the bridge and transfer
  */
 export function createPaymentClient(
@@ -172,7 +177,7 @@ const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000';
  * Create a signed payment payload
  * - Native ETH: Customer sends transaction directly (not gasless)
  * - USDC: EIP-3009 TransferWithAuthorization (gasless)
- * - Other ERC-20: ERC-2612 Permit (gasless)
+ * - Other ERC-20 (WETH, DAI, etc.): Permit2 SignatureTransfer (gasless, requires one-time approve to Permit2 contract)
  */
 async function createSignedPayment(
   privateKey: `0x${string}`,
@@ -192,12 +197,6 @@ async function createSignedPayment(
   // Create wallet client for signing/sending
   const walletClient = createWalletClient({
     account,
-    chain,
-    transport: http(RPC_URLS[chainId]),
-  });
-
-  // Create public client for reading contract state
-  const publicClient = createPublicClient({
     chain,
     transport: http(RPC_URLS[chainId]),
   });
@@ -305,15 +304,14 @@ async function createSignedPayment(
   // Get spender address (facilitator)
   const spender = paymentRequirements.extra?.facilitatorAddress || paymentRequirements.payTo;
 
-  // Get token name and version for EIP-712 domain
-  const tokenName = paymentRequirements.extra?.name || (isUsdc ? 'USD Coin' : 'Unknown Token');
-  const tokenVersion = paymentRequirements.extra?.version || '2';
-
   const deadline = BigInt(Math.floor(Date.now() / 1000) + (paymentRequirements.maxTimeoutSeconds || 300));
 
   if (isUsdc) {
     // EIP-3009 TransferWithAuthorization for USDC
     console.log('[Payment Client] Signing EIP-3009 authorization (USDC)...');
+
+    const tokenName = paymentRequirements.extra?.name || 'USD Coin';
+    const tokenVersion = paymentRequirements.extra?.version || '2';
 
     // Generate random nonce
     const nonce = keccak256(toHex(Date.now().toString() + Math.random().toString()));
@@ -358,49 +356,34 @@ async function createSignedPayment(
       },
     };
   } else {
-    // ERC-2612 Permit for other tokens
-    console.log('[Payment Client] Signing ERC-2612 permit...');
+    // Permit2 SignatureTransfer for non-USDC ERC-20 tokens (WETH, DAI, etc.)
+    // Requires: token.approve(PERMIT2_ADDRESS, maxUint256) done once by the user
+    console.log('[Payment Client] Signing Permit2 transfer...');
 
-    // Get current nonce from token contract
-    let nonce = BigInt(0);
-    try {
-      nonce = await publicClient.readContract({
-        address: tokenAddress as Address,
-        abi: [
-          {
-            inputs: [{ name: 'owner', type: 'address' }],
-            name: 'nonces',
-            outputs: [{ name: '', type: 'uint256' }],
-            stateMutability: 'view',
-            type: 'function',
-          },
-        ],
-        functionName: 'nonces',
-        args: [account.address],
-      }) as bigint;
-    } catch (e) {
-      console.warn('[Payment Client] Could not read nonce, using 0');
-    }
+    // Random nonce - Permit2 uses unordered bitmap nonces (no sequential front-running)
+    const nonce = BigInt(keccak256(toHex(Date.now().toString() + Math.random().toString())));
 
+    // Permit2 domain is always the same contract - not the token contract
     const domain = {
-      name: tokenName,
-      version: tokenVersion,
+      name: 'Permit2',
       chainId: paymentRequirements.extra?.chainId || chainId,
-      verifyingContract: (paymentRequirements.extra?.verifyingContract || tokenAddress) as Address,
+      verifyingContract: PERMIT2_ADDRESS as Address,
     };
 
     const message = {
-      owner: account.address,
+      permitted: {
+        token: tokenAddress as Address,
+        amount: BigInt(amount),
+      },
       spender: spender as Address,
-      value: BigInt(amount),
       nonce,
       deadline,
     };
 
     const signature = await walletClient.signTypedData({
       domain,
-      types: PERMIT_TYPES,
-      primaryType: 'Permit',
+      types: PERMIT2_TRANSFER_TYPES,
+      primaryType: 'PermitTransferFrom',
       message,
     });
 
@@ -409,10 +392,11 @@ async function createSignedPayment(
       scheme: 'exact',
       network: NETWORK_NAMES[chainId] || 'base',
       payload: {
-        permit: {
+        permit2: {
           owner: account.address,
           spender,
-          value: amount,
+          token: tokenAddress,
+          amount,
           nonce: nonce.toString(),
           deadline: deadline.toString(),
         },

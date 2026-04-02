@@ -8,6 +8,7 @@ export interface MiddlewareConfig {
   price: string; // e.g., '$0.01'
   network: string; // e.g., 'base'
   facilitatorUrl: string;
+  facilitatorAddress?: string; // Facilitator wallet address - REQUIRED for Permit2 (non-USDC) payments
   description?: string;
   // EIP-712 domain info for signing
   tokenName?: string;
@@ -59,6 +60,10 @@ export function paymentMiddleware(config: MiddlewareConfig) {
           paymentRequirements.srcNetwork = preferredNetwork;
         }
 
+        if (config.facilitatorAddress) {
+          paymentRequirements.extra!.facilitatorAddress = config.facilitatorAddress;
+        }
+
         return res.status(402).json({
           x402Version: 1,
           accepts: [paymentRequirements],
@@ -72,7 +77,7 @@ export function paymentMiddleware(config: MiddlewareConfig) {
       );
 
       // Get payer from payload
-      const payer = paymentPayload.payload?.permit?.owner || 
+      const payer = paymentPayload.payload?.permit2?.owner ||
                     paymentPayload.payload?.authorization?.from;
 
       // Build payment requirements
@@ -87,6 +92,7 @@ export function paymentMiddleware(config: MiddlewareConfig) {
           version: config.tokenVersion || '2',
           chainId: chainId,
           verifyingContract: usdcAddress,
+          facilitatorAddress: config.facilitatorAddress, // Spender for Permit2 messages
         },
       };
 

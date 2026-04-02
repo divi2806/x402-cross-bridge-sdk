@@ -1,6 +1,6 @@
 {
   "name": "@x402-crosschain/facilitator",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "x402-compliant facilitator for gasless cross-chain payments with Relay Network",
   "type": "module",
   "main": "dist/index.js",
@@ -38,7 +38,9 @@
     "cross-chain",
     "payments",
     "facilitator",
+    "permit2",
     "relay",
+    "weth",
     "web3",
     "ethereum",
     "blockchain"

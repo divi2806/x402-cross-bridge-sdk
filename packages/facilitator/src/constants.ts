@@ -49,5 +49,9 @@ export const NETWORK_NAMES: Record<number, string> = {
 // Native token address (0x0 = ETH, MATIC, AVAX, etc.)
 export const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
 
+// Permit2 canonical contract - same address on all EVM chains (deployed by Uniswap)
+// Any ERC-20 (including WETH) that has approved this address can use gasless transfers
+export const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
+
 export const POLL_INTERVAL = 5000; // 5 seconds
 export const MAX_POLL_ATTEMPTS = 720; // 1 hour max (720 * 5s)

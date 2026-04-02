@@ -14,12 +14,13 @@ export interface FacilitatorConfig {
 }
 
 // x402-compatible payment payload types
-interface PermitPayload {
-  owner: string;
-  spender: string;
-  value: string;
-  nonce: string;
-  deadline: string;
+interface Permit2Payload {
+  owner: string;    // Token owner / customer
+  spender: string;  // Facilitator address
+  token: string;    // Token contract address
+  amount: string;   // Max amount permitted
+  nonce: string;    // Random uint256 (Permit2 unordered bitmap nonces)
+  deadline: string; // Unix timestamp deadline
 }
 
 interface AuthorizationPayload {
@@ -44,23 +45,67 @@ interface X402PaymentPayload {
   scheme: string;
   network: string;
   payload: {
-    permit?: PermitPayload;
+    permit2?: Permit2Payload;
     authorization?: AuthorizationPayload;
     nativePayment?: NativePayment;
     signature?: string;
   };
 }
 
-// EIP-712 types for signature verification
-const PERMIT_TYPES = {
-  Permit: [
-    { name: 'owner', type: 'address' },
+// Permit2 canonical contract address - same on all EVM chains
+const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
+
+// Permit2 SignatureTransfer EIP-712 types for signature verification
+const PERMIT2_TRANSFER_TYPES = {
+  PermitTransferFrom: [
+    { name: 'permitted', type: 'TokenPermissions' },
     { name: 'spender', type: 'address' },
-    { name: 'value', type: 'uint256' },
     { name: 'nonce', type: 'uint256' },
     { name: 'deadline', type: 'uint256' },
   ],
+  TokenPermissions: [
+    { name: 'token', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+  ],
 };
+
+// Permit2 ABI for permitTransferFrom execution
+const PERMIT2_ABI = [
+  {
+    name: 'permitTransferFrom',
+    type: 'function',
+    inputs: [
+      {
+        name: 'permit',
+        type: 'tuple',
+        components: [
+          {
+            name: 'permitted',
+            type: 'tuple',
+            components: [
+              { name: 'token', type: 'address' },
+              { name: 'amount', type: 'uint256' },
+            ],
+          },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      {
+        name: 'transferDetails',
+        type: 'tuple',
+        components: [
+          { name: 'to', type: 'address' },
+          { name: 'requestedAmount', type: 'uint256' },
+        ],
+      },
+      { name: 'owner', type: 'address' },
+      { name: 'signature', type: 'bytes' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const;
 
 const AUTHORIZATION_TYPES = {
   TransferWithAuthorization: [
@@ -75,7 +120,7 @@ const AUTHORIZATION_TYPES = {
 
 /**
  * Start the x402-compatible facilitator server
- * Supports ERC-2612 permits and EIP-3009 authorizations
+ * Supports Permit2 SignatureTransfer (any ERC-20, including WETH) and EIP-3009 (USDC)
  * Uses Relay for cross-chain bridging
  */
 export async function startFacilitator(userConfig?: FacilitatorConfig) {
@@ -113,8 +158,8 @@ export async function startFacilitator(userConfig?: FacilitatorConfig) {
  * x402-compliant verify endpoint
  * Verifies:
  * - Native ETH payments (via Relay tx hash)
- * - ERC-2612 permit signatures
- * - EIP-3009 authorization signatures
+ * - Permit2 SignatureTransfer signatures (WETH, DAI, and any ERC-20)
+ * - EIP-3009 authorization signatures (USDC)
  */
 app.post('/verify', async (req, res) => {
   try {
@@ -126,11 +171,11 @@ app.post('/verify', async (req, res) => {
 
     // Parse x402 payment payload
     const payload = paymentPayload as X402PaymentPayload;
-    const { permit, authorization, nativePayment, signature } = payload.payload || {};
+    const { permit2, authorization, nativePayment, signature } = payload.payload || {};
 
     // Determine payer address
-    const payer = permit?.owner || authorization?.from || nativePayment?.from;
-    
+    const payer = permit2?.owner || authorization?.from || nativePayment?.from;
+
     if (!payer) {
       return res.json({
         isValid: false,
@@ -208,7 +253,7 @@ app.post('/verify', async (req, res) => {
       crossChain: isCrossChain,
       srcChainId,
       destChainId,
-      hasPermit: !!permit,
+      hasPermit2: !!permit2,
       hasAuthorization: !!authorization,
     });
 
@@ -282,75 +327,72 @@ app.post('/verify', async (req, res) => {
         isValidSignature = false;
       }
 
-    } else if (permit) {
-      // ERC-2612 Permit
-      console.log('[API] Verifying ERC-2612 permit signature...');
-      
+    } else if (permit2) {
+      // Permit2 SignatureTransfer (WETH, DAI, and any ERC-20)
+      console.log('[API] Verifying Permit2 signature...');
+
       // Check deadline
-      const deadline = BigInt(permit.deadline);
+      const deadline = BigInt(permit2.deadline);
       const now = BigInt(Math.floor(Date.now() / 1000));
       if (deadline < now + BigInt(6)) {
         return res.json({
           isValid: false,
-          invalidReason: 'Permit deadline expired or too soon',
+          invalidReason: 'Permit2 deadline expired or too soon',
           payer,
         });
       }
 
-      // Check spender is facilitator or payTo
-      if (permit.spender.toLowerCase() !== paymentRequirements.payTo.toLowerCase() &&
-          permit.spender.toLowerCase() !== facilitatorWallet.address.toLowerCase()) {
+      // Spender in the Permit2 message must be the facilitator (only it can call permitTransferFrom)
+      if (permit2.spender.toLowerCase() !== facilitatorWallet.address.toLowerCase() &&
+          permit2.spender.toLowerCase() !== paymentRequirements.payTo.toLowerCase()) {
         return res.json({
           isValid: false,
-          invalidReason: 'Permit spender mismatch',
+          invalidReason: 'Permit2 spender mismatch',
           payer,
         });
       }
 
       // Check amount
-      if (BigInt(permit.value) < BigInt(paymentRequirements.srcAmountRequired || paymentRequirements.maxAmountRequired)) {
+      if (BigInt(permit2.amount) < BigInt(paymentRequirements.srcAmountRequired || paymentRequirements.maxAmountRequired)) {
         return res.json({
           isValid: false,
-          invalidReason: 'Permit amount insufficient',
+          invalidReason: 'Permit2 amount insufficient',
           payer,
         });
       }
 
-      // Verify EIP-712 signature
-      const tokenAddress = paymentRequirements.srcTokenAddress || paymentRequirements.asset;
-      const tokenName = paymentRequirements.extra?.name || 'Unknown Token';
-      const tokenVersion = paymentRequirements.extra?.version || '1';
-
+      // Verify EIP-712 signature - domain is always Permit2 contract, not the token
       const domain = {
-        name: tokenName,
-        version: tokenVersion,
+        name: 'Permit2',
         chainId: paymentRequirements.extra?.chainId || srcChainId,
-        verifyingContract: paymentRequirements.extra?.verifyingContract || tokenAddress,
+        verifyingContract: PERMIT2_ADDRESS,
       };
 
       try {
         const recoveredAddress = ethers.verifyTypedData(
           domain,
-          PERMIT_TYPES,
+          PERMIT2_TRANSFER_TYPES,
           {
-            owner: permit.owner,
-            spender: permit.spender,
-            value: BigInt(permit.value),
-            nonce: BigInt(permit.nonce),
-            deadline: BigInt(permit.deadline),
+            permitted: {
+              token: permit2.token,
+              amount: BigInt(permit2.amount),
+            },
+            spender: permit2.spender,
+            nonce: BigInt(permit2.nonce),
+            deadline: BigInt(permit2.deadline),
           },
           signature
         );
         isValidSignature = recoveredAddress.toLowerCase() === payer.toLowerCase();
-        console.log(`[API] Signature verification: ${isValidSignature ? '✅' : '❌'} (recovered: ${recoveredAddress})`);
+        console.log(`[API] Permit2 signature verification: ${isValidSignature ? '✅' : '❌'} (recovered: ${recoveredAddress})`);
       } catch (e) {
-        console.error('[API] Signature verification failed:', e);
+        console.error('[API] Permit2 signature verification failed:', e);
         isValidSignature = false;
       }
     } else {
       return res.json({
         isValid: false,
-        invalidReason: 'Missing permit or authorization in payload',
+        invalidReason: 'Missing permit2 or authorization in payload',
         payer,
       });
     }
@@ -380,12 +422,12 @@ app.post('/verify', async (req, res) => {
 /**
  * POST /settle
  * x402-compliant settle endpoint
- * 
+ *
  * Supports ANY ERC-20 token on ANY chain → USDC on Base to merchant
- * 
+ *
  * Flow:
- * 1. Customer signs permit for their token (WETH, DAI, USDC, etc.)
- * 2. Facilitator takes tokens from customer via permit
+ * 1. Customer signs Permit2 message for their token (WETH, DAI, USDC, etc.)
+ * 2. Facilitator calls Permit2.permitTransferFrom() to take tokens from customer
  * 3. Facilitator uses Relay to swap+bridge → USDC on Base
  * 4. Relay delivers USDC directly to merchant
  */
@@ -399,10 +441,10 @@ app.post('/settle', async (req, res) => {
 
     // Parse x402 payment payload
     const payload = paymentPayload as X402PaymentPayload;
-    const { permit, authorization, nativePayment, signature } = payload.payload || {};
+    const { permit2, authorization, nativePayment, signature } = payload.payload || {};
 
     // Determine payer address
-    const payer = permit?.owner || authorization?.from || nativePayment?.from;
+    const payer = permit2?.owner || authorization?.from || nativePayment?.from;
 
     if (!payer) {
       return res.json({
@@ -463,6 +505,7 @@ app.post('/settle', async (req, res) => {
       destAmount,
       merchant,
       needsSwapOrBridge,
+      paymentType: authorization ? 'EIP-3009' : 'Permit2',
     });
 
     // Get RPC for source chain
@@ -515,50 +558,30 @@ app.post('/settle', async (req, res) => {
           });
         }
 
-      } else if (permit) {
-        // ERC-2612: permit + transferFrom (any ERC-20)
-        console.log('[API] Step 1: Taking tokens from customer via ERC-2612 permit...');
+      } else if (permit2) {
+        // Permit2 SignatureTransfer - single call, works with WETH and any ERC-20
+        console.log('[API] Step 1: Taking tokens from customer via Permit2...');
 
-        const sig = ethers.Signature.from(signature);
-
-        const tokenContract = new ethers.Contract(
-          srcToken,
-          [
-            'function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external',
-            'function transferFrom(address from, address to, uint256 amount) external returns (bool)',
-            'function approve(address spender, uint256 amount) external returns (bool)',
-            'function balanceOf(address account) external view returns (uint256)'
-          ],
-          srcWallet
-        );
+        const permit2Contract = new ethers.Contract(PERMIT2_ADDRESS, PERMIT2_ABI, srcWallet);
 
         try {
-          // Execute permit
-          const permitTx = await tokenContract.permit(
-            permit.owner,
-            permit.spender,
-            permit.value,
-            permit.deadline,
-            sig.v,
-            sig.r,
-            sig.s
+          const tx = await permit2Contract.permitTransferFrom(
+            {
+              permitted: { token: permit2.token, amount: permit2.amount },
+              nonce: permit2.nonce,
+              deadline: permit2.deadline,
+            },
+            { to: srcWallet.address, requestedAmount: permit2.amount }, // Transfer to facilitator
+            permit2.owner,
+            signature
           );
-          await permitTx.wait();
-          console.log('[API] Permit executed');
-
-          // Transfer tokens to facilitator
-          const transferTx = await tokenContract.transferFrom(
-            permit.owner,
-            srcWallet.address,
-            permit.value
-          );
-          await transferTx.wait();
-          console.log('[API] ✅ Tokens received from customer');
+          await tx.wait();
+          console.log('[API] ✅ Tokens received from customer via Permit2');
         } catch (e: any) {
-          console.error('[API] Permit/TransferFrom failed:', e);
+          console.error('[API] Permit2 transfer failed:', e);
           return res.json({
             success: false,
-            errorReason: `Failed to take tokens: ${e.message}`,
+            errorReason: `Permit2 transfer failed: ${e.message}`,
             payer,
           });
         }
@@ -684,44 +707,29 @@ app.post('/settle', async (req, res) => {
           });
         }
 
-      } else if (permit) {
-        // ERC-2612: permit + transferFrom to merchant
-        const sig = ethers.Signature.from(signature);
-
-        const tokenContract = new ethers.Contract(
-          destToken,
-          [
-            'function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external',
-            'function transferFrom(address from, address to, uint256 amount) external returns (bool)'
-          ],
-          srcWallet
-        );
+      } else if (permit2) {
+        // Permit2 SignatureTransfer - single call directly to merchant
+        const permit2Contract = new ethers.Contract(PERMIT2_ADDRESS, PERMIT2_ABI, srcWallet);
 
         try {
-          const permitTx = await tokenContract.permit(
-            permit.owner,
-            permit.spender,
-            permit.value,
-            permit.deadline,
-            sig.v,
-            sig.r,
-            sig.s
+          const tx = await permit2Contract.permitTransferFrom(
+            {
+              permitted: { token: permit2.token, amount: permit2.amount },
+              nonce: permit2.nonce,
+              deadline: permit2.deadline,
+            },
+            { to: merchant, requestedAmount: permit2.amount }, // Transfer directly to merchant
+            permit2.owner,
+            signature
           );
-          await permitTx.wait();
-
-          const transferTx = await tokenContract.transferFrom(
-            permit.owner,
-            merchant, // Direct to merchant
-            permit.value
-          );
-          const receipt = await transferTx.wait();
+          const receipt = await tx.wait();
           txHash = receipt.hash;
-          console.log(`[API] ✅ Settlement complete: ${txHash}`);
+          console.log(`[API] ✅ Settlement complete via Permit2: ${txHash}`);
         } catch (e: any) {
-          console.error('[API] Settlement failed:', e);
+          console.error('[API] Permit2 settlement failed:', e);
           return res.json({
             success: false,
-            errorReason: `Settlement failed: ${e.message}`,
+            errorReason: `Permit2 settlement failed: ${e.message}`,
             payer,
           });
         }
