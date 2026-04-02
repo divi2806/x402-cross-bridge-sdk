@@ -2,7 +2,7 @@
 
 > **x402-compliant facilitator for cross-chain payments with Relay Network**
 
-The facilitator verifies payment signatures (EIP-3009/ERC-2612), executes token transfers, and handles cross-chain bridging via Relay Network. Merchants receive USDC on Base regardless of what token/chain the customer pays with.
+The facilitator verifies payment signatures (EIP-3009 for USDC, Permit2 for all other ERC-20s), executes token transfers, and handles cross-chain bridging via Relay Network. Merchants receive USDC on Base regardless of what token/chain the customer pays with.
 
 ---
 
@@ -10,8 +10,8 @@ The facilitator verifies payment signatures (EIP-3009/ERC-2612), executes token 
 
 The facilitator is the backend engine that powers x402 cross-chain payments:
 
-1. **Signature Verification** - Verifies EIP-3009 (USDC) and ERC-2612 (other tokens) signatures
-2. **Token Collection** - Executes permit/authorization to collect tokens from customer
+1. **Signature Verification** - Verifies EIP-3009 (USDC) and Permit2 SignatureTransfer (all other ERC-20s) signatures
+2. **Token Collection** - Executes `Permit2.permitTransferFrom()` or `transferWithAuthorization()` to collect tokens
 3. **Swap & Bridge** - Uses Relay Network to swap any token → USDC and bridge to Base
 4. **Settlement** - Delivers USDC to merchant on Base
 
@@ -21,7 +21,7 @@ The facilitator is the backend engine that powers x402 cross-chain payments:
 
 - **x402 Protocol Compliant** - Works with standard x402 clients (x402-axios, x402-fetch)
 - **Gasless for Customers** - Customers sign permits, facilitator pays gas (ERC-20 tokens)
-- **Any Token Support** - Accept ETH, WETH, USDC, DAI, or any ERC-2612 token
+- **Any Token Support** - Accept ETH, WETH, USDC, DAI, or any ERC-20 token (via Permit2)
 - **Any Chain Support** - 10+ chains including Ethereum, Arbitrum, Base, Polygon, BNB Chain
 - **Instant Settlement** - 2-3 second bridging via Relay liquidity pools
 - **Native Token Support** - Accept native ETH/BNB/MATIC (customer sends tx)
@@ -33,7 +33,7 @@ The facilitator is the backend engine that powers x402 cross-chain payments:
 | Payment Type | Gasless? | How It Works |
 |--------------|----------|--------------|
 | **USDC** | ✅ Yes | EIP-3009 TransferWithAuthorization |
-| **WETH, DAI, etc.** | ✅ Yes | ERC-2612 Permit + TransferFrom |
+| **WETH, DAI, any ERC-20** | ✅ Yes | Permit2 SignatureTransfer (one-time approve required) |
 | **Native ETH/BNB** | ❌ No | Customer sends tx to Relay directly |
 
 ---
@@ -92,9 +92,9 @@ PORT=3001
 
 ### **POST /verify**
 
-Verify a payment signature (EIP-3009 or ERC-2612).
+Verify a payment signature (Permit2 for non-USDC ERC-20, EIP-3009 for USDC, or native ETH via Relay status).
 
-**Request:**
+**Request (Permit2 — WETH/DAI/any ERC-20):**
 
 ```json
 {
@@ -103,9 +103,39 @@ Verify a payment signature (EIP-3009 or ERC-2612).
     "scheme": "exact",
     "network": "arbitrum",
     "payload": {
+      "permit2": {
+        "owner": "0xCustomerAddress",
+        "spender": "0xFacilitatorWalletAddress",
+        "token": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+        "amount": "500000000000000000",
+        "nonce": "123456789",
+        "deadline": "1735200000"
+      },
+      "signature": "0x..."
+    }
+  },
+  "paymentRequirements": {
+    "scheme": "exact",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "maxAmountRequired": "1000000",
+    "network": "base",
+    "payTo": "0xMerchantAddress"
+  }
+}
+```
+
+**Request (EIP-3009 — USDC):**
+
+```json
+{
+  "paymentPayload": {
+    "x402Version": 1,
+    "scheme": "exact",
+    "network": "base",
+    "payload": {
       "authorization": {
         "from": "0xCustomerAddress",
-        "to": "0xFacilitatorAddress",
+        "to": "0xFacilitatorWalletAddress",
         "value": "1000000",
         "validAfter": "0",
         "validBefore": "1735200000",
@@ -174,10 +204,10 @@ Health check endpoint.
 ### **ERC-20 Tokens (Gasless for Customer)**
 
 ```
-1. Customer signs ERC-2612 permit or EIP-3009 authorization
+1. Customer signs Permit2 SignatureTransfer (or EIP-3009 for USDC)
 2. Customer sends X-PAYMENT header with signature
 3. Facilitator verifies signature (/verify)
-4. Facilitator executes permit + transferFrom (collects tokens)
+4. Facilitator calls Permit2.permitTransferFrom() to collect tokens (single call)
 5. Facilitator calls Relay to swap + bridge → USDC on Base
 6. Relay delivers USDC to merchant
 7. Facilitator confirms settlement (/settle)
@@ -276,10 +306,28 @@ curl -X POST http://localhost:3001/verify \
 
 | Issue | Solution |
 |-------|----------|
-| "Signature verification failed" | Check EIP-712 domain parameters match |
+| "Permit2 spender mismatch" | Set `facilitatorAddress` in merchant middleware to match this wallet |
+| "Signature verification failed" | Check EIP-712 domain parameters match (Permit2 domain is always the Permit2 contract) |
 | "Insufficient gas" | Fund facilitator wallet with ETH on source chain |
 | "Relay quote failed" | Verify token/chain is supported by Relay |
-| "Transfer failed" | Check customer has sufficient token balance |
+| "Transfer failed" | Check customer has approved Permit2 contract (`token.approve(PERMIT2_ADDRESS, MaxUint256)`) |
+
+---
+
+## **Changelog**
+
+### v2.1.0
+- **Replaced ERC-2612 with Permit2** for all non-USDC ERC-20 tokens (including WETH)
+  - Single `Permit2.permitTransferFrom()` call replaces `permit()` + `transferFrom()`
+  - Works with any ERC-20 — no need for per-token `permit()` support
+  - Random unordered nonces — no sequential front-running risk
+- **Added `requestId` tracking** for native ETH payments via Relay status API
+- Both `/verify` and `/settle` updated for Permit2 flow
+
+### v2.0.0 (December 2025)
+- Initial release with x402 protocol support
+- EIP-3009 for USDC, ERC-2612 for other ERC-20s
+- Relay Network cross-chain bridging
 
 ---
 

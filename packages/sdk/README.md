@@ -13,7 +13,7 @@ Accept payments in any token on any chain. Customers pay with ETH, WETH, USDC, o
 
 - **x402 Protocol Compliant** - Works with standard x402 clients
 - **Gasless Payments** - Customers sign permits, no gas needed (ERC-20)
-- **Any Token** - Accept ETH, WETH, USDC, DAI, or any ERC-2612 token
+- **Any Token** - Accept ETH, WETH, USDC, DAI, or any ERC-20 token (via Permit2)
 - **Any Chain** - 10+ chains including Ethereum, Arbitrum, Base, Polygon, BNB Chain
 - **Instant Settlement** - 2-3 second bridging via Relay Network
 - **Simple Integration** - Express middleware for merchants
@@ -47,6 +47,7 @@ app.use(
     price: '$1.00',
     network: 'base',
     facilitatorUrl: 'http://localhost:3001',
+    facilitatorAddress: '0xYourFacilitatorWalletAddress', // Required for Permit2 (non-USDC) payments
   })
 );
 
@@ -100,10 +101,10 @@ const response = await client.get('https://api.example.com/premium');
 ```
 1. Customer requests protected resource
 2. Server returns 402 with payment requirements
-3. Customer signs ERC-2612 permit or EIP-3009 authorization (NO GAS)
+3. Customer signs Permit2 SignatureTransfer or EIP-3009 authorization (NO GAS)
 4. Customer retries with X-PAYMENT header
 5. Facilitator verifies signature
-6. Facilitator takes tokens via permit
+6. Facilitator calls Permit2.permitTransferFrom() to take tokens
 7. Facilitator swaps + bridges via Relay → USDC on Base
 8. Merchant receives USDC
 ```
@@ -125,7 +126,7 @@ const response = await client.get('https://api.example.com/premium');
 | Token Type | Gasless? | How It Works |
 |------------|----------|--------------|
 | **USDC** | ✅ Yes | EIP-3009 TransferWithAuthorization |
-| **WETH, DAI, etc.** | ✅ Yes | ERC-2612 Permit |
+| **WETH, DAI, any ERC-20** | ✅ Yes | Permit2 SignatureTransfer (requires one-time approve) |
 | **Native ETH/BNB/MATIC** | ❌ No | Customer sends tx to Relay |
 
 ---
@@ -154,11 +155,12 @@ Express middleware for protecting routes with payment requirements.
 
 ```typescript
 interface MiddlewareConfig {
-  payTo: string;           // Merchant wallet address
-  price: string;           // Price (e.g., '$0.01', '$10.00')
-  network: string;         // Settlement network ('base')
-  facilitatorUrl: string;  // Facilitator URL
-  description?: string;    // Optional description
+  payTo: string;                 // Merchant wallet address
+  price: string;                 // Price (e.g., '$0.01', '$10.00')
+  network: string;               // Settlement network ('base')
+  facilitatorUrl: string;        // Facilitator URL
+  facilitatorAddress?: string;   // Facilitator wallet address — required for Permit2 (non-USDC) payments
+  description?: string;          // Optional description
 }
 ```
 
@@ -179,6 +181,18 @@ interface PaymentPreferences {
 Create a payment client for browser applications with MetaMask/Coinbase Wallet.
 
 ---
+
+## **Exported Constants**
+
+```typescript
+import {
+  PERMIT2_ADDRESS,  // '0x000000000022D473030F116dDEE9F6B43aC78BA3' — same on all chains
+  USDC_ADDRESSES,   // { [chainId]: address }
+  WETH_ADDRESSES,   // { [chainId]: address }
+  CHAIN_IDS,        // { 'base': 8453, 'arbitrum': 42161, ... }
+  NETWORK_NAMES,    // { 8453: 'base', 42161: 'arbitrum', ... }
+} from '@x402-crosschain/sdk';
+```
 
 ## **Token Addresses**
 
@@ -261,10 +275,19 @@ MIT License
 
 ## **Changelog**
 
+### v2.1.0
+- **Replaced ERC-2612 with Permit2** for all non-USDC ERC-20 tokens
+  - Works with WETH on all chains (mainnet WETH does not support ERC-2612)
+  - Unordered random nonces — no sequential front-running risk
+  - Single `Permit2.permitTransferFrom()` call instead of `permit()` + `transferFrom()`
+  - Consistent EIP-712 domain (`Permit2` contract) across all tokens
+- **Added `facilitatorAddress`** to `MiddlewareConfig` — required for correct Permit2 spender binding
+- **Added `PERMIT2_ADDRESS`** and `WETH_ADDRESSES` exports
+- **Renamed** `PermitPayload` → `Permit2Payload`, payload key `permit` → `permit2`
+
 ### v2.0.0 (December 2025)
 - **x402 Protocol Compliance** - Full compatibility with x402 standard
 - **Gasless Payments** - EIP-3009 and ERC-2612 signature support
-- **Any Token Support** - Accept any ERC-20 token with permit support
 - **Native Token Support** - Accept ETH, BNB, MATIC via Relay
 - **Multi-Chain** - Added BNB Chain, Avalanche, zkSync, Linea
 - **Simplified API** - New `createPaymentClient` and `createBrowserPaymentClient`
